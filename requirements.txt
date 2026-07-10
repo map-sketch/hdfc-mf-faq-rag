@@ -1,0 +1,13 @@
+requests
+beautifulsoup4
+langchain
+langchain-community
+langchain-core
+langchain-chroma
+langchain-groq
+sentence-transformers
+chromadb
+groq
+streamlit
+python-dotenv
+torchvision

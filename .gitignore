@@ -1,0 +1,14 @@
+# .gitignore
+.env
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+vectorstore/
+data/scraped_pages/
+data/embeddings_view.json
+data/debug_scores.json
+data/phase3_evaluation.json
+*.log
+.venv/
+venv/
