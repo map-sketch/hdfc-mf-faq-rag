@@ -1,16 +1,21 @@
 import streamlit as st
 import os
-from src.rag_chain import RAGPipeline
 
-# ── Streamlit Cloud: load secrets into env vars ──────────────────────────────
-# On Streamlit Cloud, secrets are in st.secrets (TOML), not a .env file.
-# This block bridges them so the rest of the code (which reads os.getenv) works.
-if hasattr(st, "secrets"):
-    for key in ["GROQ_API_KEY", "HF_TOKEN", "CHROMA_PERSIST_DIR",
-                "COLLECTION_NAME", "BGE_MODEL_NAME", "GROQ_MODEL_NAME",
-                "RETRIEVAL_TOP_K", "RETRIEVAL_SCORE_THRESHOLD"]:
-        if key in st.secrets and not os.environ.get(key):
-            os.environ[key] = str(st.secrets[key])
+# ── Streamlit Cloud: bridge st.secrets → os.environ ─────────────────────────
+# This MUST run before any src.* imports, since those modules read os.getenv()
+# at import time (e.g. config.py calls load_dotenv, ChatGroq reads GROQ_API_KEY).
+try:
+    _secrets = st.secrets
+    for _key in [
+        "GROQ_API_KEY", "HF_TOKEN", "CHROMA_PERSIST_DIR",
+        "COLLECTION_NAME", "BGE_MODEL_NAME", "GROQ_MODEL_NAME",
+        "RETRIEVAL_TOP_K", "RETRIEVAL_SCORE_THRESHOLD",
+    ]:
+        if _key in _secrets:
+            os.environ[_key] = str(_secrets[_key])
+except Exception:
+    # Running locally — env vars already loaded from .env via python-dotenv
+    pass
 
 # Page configuration
 st.set_page_config(
@@ -20,14 +25,16 @@ st.set_page_config(
 )
 
 
-@st.cache_resource(show_spinner="Loading knowledge base... (first run may take a minute)")
+@st.cache_resource(show_spinner="Loading knowledge base… (first run may take ~60 s)")
 def get_pipeline():
     """
-    Initialise the RAG pipeline once per session.
-    On first cloud deploy the vectorstore is empty — auto-ingest runs here.
+    All src.* imports live here so they run AFTER the secrets bridge above.
+    On first Streamlit Cloud deploy the vectorstore is empty — auto-ingest fires.
     """
+    # Lazy imports — after env vars are guaranteed to be set
     from src.embeddings import get_vectorstore
     from src.ingest import process_and_ingest
+    from src.rag_chain import RAGPipeline
 
     vs = get_vectorstore()
     try:
@@ -36,7 +43,7 @@ def get_pipeline():
         count = 0
 
     if count == 0:
-        st.info("📥 Vector store is empty — running initial data ingestion. This takes ~60 seconds...")
+        st.info("📥 Vector store is empty — running initial data ingestion (~60 s)...")
         process_and_ingest()
 
     return RAGPipeline()
@@ -51,8 +58,6 @@ def main():
     init_session_state()
 
     st.title("🏦 Mutual Fund FAQ Assistant")
-
-    # Disclaimer Banner
     st.warning("⚠️ **Facts-only. No investment advice.**")
 
     st.markdown("""
@@ -65,7 +70,7 @@ def main():
 
     st.divider()
 
-    # Load pipeline (cached — only initialised once per session)
+    # Load pipeline (cached — initialised only once per session)
     pipeline = get_pipeline()
 
     # Display chat history
@@ -83,9 +88,9 @@ def main():
                 response = pipeline.process_query(prompt)
             except Exception as e:
                 response = (
-                    f"An error occurred while processing your request. "
-                    f"Please ensure your API key configuration is valid.\n\n"
-                    f"**Error details:** {str(e)}"
+                    "An error occurred while processing your request. "
+                    "Please ensure your API key is configured correctly.\n\n"
+                    f"**Error:** {str(e)}"
                 )
 
         with st.chat_message("assistant"):
