@@ -5,10 +5,8 @@ __pycache__/
 *.pyo
 .DS_Store
 vectorstore/
-data/scraped_pages/
-data/embeddings_view.json
-data/debug_scores.json
-data/phase3_evaluation.json
+data/
+debug_retrieval.py
 *.log
 .venv/
 venv/
