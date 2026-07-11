@@ -5,9 +5,9 @@ langchain-community
 langchain-core
 langchain-chroma
 langchain-groq
+langchain-huggingface
 sentence-transformers
 chromadb
 groq
 streamlit
 python-dotenv
-torchvision
