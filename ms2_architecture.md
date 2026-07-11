@@ -92,9 +92,37 @@ This document describes the end-to-end system architecture for the **Mutual Fund
 
 ## 2. Component Breakdown
 
+### 2.0 Scheduler Component (GitHub Actions)
+
+The Scheduler is the **entry point of the automated data refresh pipeline**. It runs daily at 10:00 AM IST and triggers the full ingestion cycle to keep the vector store in sync with live Groww data.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                       SCHEDULER COMPONENT                                   │
+│                   (GitHub Actions — Cloud Runner)                           │
+│                                                                             │
+│  ┌─────────────────────┐       ┌──────────────────────────────────────┐     │
+│  │  Cron Trigger       │──────▶│  Daily Data Refresh Workflow         │     │
+│  │  30 4 * * *         │       │  (.github/workflows/daily_refresh.yml│     │
+│  │  (10:00 AM IST)     │       │                                      │     │
+│  └─────────────────────┘       │  1. Checkout repo                    │     │
+│                                │  2. pip install -r requirements.txt  │     │
+│  ┌─────────────────────┐       │  3. python -m src.ingest             │     │
+│  │  Manual Trigger     │──────▶│  4. git commit updated vectorstore   │     │
+│  │  (workflow_dispatch)│       │  5. git push to master               │     │
+│  └─────────────────────┘       └──────────────────┬───────────────────┘     │
+│                                                   │                         │
+│  Secrets injected at runtime:                     │ Triggers                │
+│  - GROQ_API_KEY                                   ▼                         │
+│  - HF_TOKEN                          Data Ingestion Pipeline                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ### 2.1 Data Ingestion Pipeline
 
-The ingestion pipeline is an **offline, one-time process** (re-run when corpus is updated) that scrapes the 5 Groww scheme pages, converts the extracted HTML content into text chunks, embeds them, and stores them in the vector database.
+The ingestion pipeline is triggered **daily by the Scheduler** (Phase 6) and can also be run manually (`python -m src.ingest`). It scrapes the 5 Groww scheme pages, converts extracted HTML content into text chunks, embeds them, and stores them in the vector database. Before inserting, all existing entries are cleared to prevent stale or duplicate data.
 
 **Data Sources (Groww URLs only):**
 
@@ -322,6 +350,42 @@ def format_response(llm_output, source_metadata):
 
 ---
 
+### 2.8 Scheduler Component
+
+See **Section 2.0** for the full scheduler architecture diagram.
+
+| Property | Value |
+|----------|-------|
+| **Platform** | GitHub Actions |
+| **Workflow file** | `.github/workflows/daily_refresh.yml` |
+| **Cron schedule** | `30 4 * * *` — 04:30 UTC = **10:00 AM IST** |
+| **Manual trigger** | `workflow_dispatch` (GitHub Actions UI) |
+| **Runner** | `ubuntu-latest` (GitHub-hosted) |
+| **Secrets** | `GROQ_API_KEY`, `HF_TOKEN` (GitHub Repository Secrets) |
+
+**Scheduler → Ingestion Integration:**
+
+```
+GitHub Actions Cron (10AM IST)
+        │
+        ▼
+  python -m src.ingest
+        │
+        ├── Delete all existing ChromaDB entries  ← prevents duplicate chunks
+        ├── src/scraper.py  ──▶  Fetch 5 Groww pages (gzip only, no Brotli)
+        ├── sanitize_text()  ──▶  Replace ₹→INR, –→-, etc.
+        ├── RecursiveCharacterTextSplitter (400 chars, 50 overlap)
+        ├── src/embeddings.py  ──▶  BGE-small-en-v1.5 (384-dim vectors)
+        └── ChromaDB.add_documents()  ──▶  Persist to vectorstore/
+                │
+                ▼
+        git add vectorstore/
+        git commit "chore: auto-refresh vectorstore [YYYY-MM-DD]"
+        git push → master
+```
+
+---
+
 ### 2.7 User Interface Layer
 
 | Property | Value |
@@ -380,6 +444,7 @@ def format_response(llm_output, source_metadata):
 | **Orchestration** | LangChain | latest | RAG pipeline orchestration |
 | **Web Scraping** | requests, BeautifulSoup | latest | Groww page scraping & HTML parsing |
 | **UI** | Streamlit | latest | Chat interface |
+| **Scheduler** | GitHub Actions | — | Daily cron to trigger ingestion at 10AM IST |
 | **Language** | Python | 3.10+ | Core development language |
 | **Environment** | python-dotenv | latest | Secrets management (API keys) |
 
@@ -391,21 +456,23 @@ def format_response(llm_output, source_metadata):
 RAG/
 ├── problem_statement.md          # Project requirements
 ├── ms2_architecture.md           # This document
+├── ms2_implementationplan.md     # Phase-wise implementation plan
 ├── README.md                     # Setup & usage instructions
 │
-├── data/                         # Scraped corpus data
-│   └── scraped_pages/            # Raw HTML / text scraped from Groww URLs
+├── .github/
+│   └── workflows/
+│       └── daily_refresh.yml     # GitHub Actions scheduler (10AM IST)
 │
-├── vectorstore/                  # Persisted ChromaDB data
+├── vectorstore/                  # Persisted ChromaDB data (auto-updated daily)
 │   └── hdfc_mutual_fund_corpus/
 │
 ├── src/                          # Source code
 │   ├── __init__.py
-│   ├── config.py                 # Configuration constants
-│   ├── scraper.py                # Groww URL scraping logic
-│   ├── ingest.py                 # Data ingestion pipeline (scrape → chunk → embed → store)
+│   ├── config.py                 # Configuration constants + Groww URLs
+│   ├── scraper.py                # Groww URL scraping (session-based, gzip)
+│   ├── ingest.py                 # Ingestion pipeline: clear → scrape → chunk → embed → store
 │   ├── embeddings.py             # BGE embedding wrapper
-│   ├── retriever.py              # Vector store retrieval logic
+│   ├── retriever.py              # Smart retriever (key-facts + multi-fund modes)
 │   ├── query_processor.py        # PII detection + query classification
 │   ├── generator.py              # Groq LLM integration + response formatting
 │   ├── rag_chain.py              # End-to-end RAG chain orchestration
@@ -432,10 +499,14 @@ Step 3: Query Classifier determines intent
          │
 Step 4: BGE model embeds the query (with instruction prefix)
          │
-Step 5: ChromaDB similarity search retrieves top-5 chunks
-         │── No relevant chunks (all below threshold) → "I don't have this info", STOP
+Step 5: Smart Retriever fetches chunks from ChromaDB
+         │── Key-facts query (expense ratio, NAV, etc.):
+         │    Supplemental keyword search ensures value chunk surfaces first
+         │── Multi-fund query ("all funds", "list", "compare"):
+         │    Fetches 25 candidates, max 3 chunks per fund (5 funds covered)
+         │── No relevant chunks (all below 0.2 threshold) → "I don't have this info", STOP
          │
-Step 6: Context Assembler deduplicates, ranks, and caps at ~2000 tokens
+Step 6: Context Assembler deduplicates, ranks, and caps at ~2500 tokens
          │
 Step 7: System prompt + context + query sent to Groq LLM
          │
@@ -444,6 +515,18 @@ Step 8: LLM generates factual response (≤ 3 sentences)
 Step 9: Response Formatter validates citation, appends footer
          │
 Step 10: Final response displayed in Streamlit chat
+
+─── Background (Daily at 10AM IST) ───────────────────────────────────
+Step A: GitHub Actions cron fires (30 4 * * *)
+         │
+Step B: python -m src.ingest executed on ubuntu-latest runner
+         │── Clears all ChromaDB entries (prevents duplicate data)
+         │── Scrapes all 5 Groww pages (session-based, Accept-Encoding: gzip)
+         │── Sanitizes unicode (₹ → INR, etc.)
+         │── Embeds chunks with BGE-small-en-v1.5
+         │── Persists to vectorstore/
+         │
+Step C: Auto-commit vectorstore to master branch
 ```
 
 ---
@@ -459,7 +542,14 @@ COLLECTION_NAME=hdfc_mutual_fund_corpus
 BGE_MODEL_NAME=BAAI/bge-small-en-v1.5
 GROQ_MODEL_NAME=llama-3.3-70b-versatile
 RETRIEVAL_TOP_K=5
-RETRIEVAL_SCORE_THRESHOLD=0.7
+RETRIEVAL_SCORE_THRESHOLD=0.2
+```
+
+**GitHub Actions Secrets** (set in repository Settings → Secrets and variables → Actions):
+
+```
+GROQ_API_KEY   → same as .env value
+HF_TOKEN       → same as .env value (optional)
 ```
 
 ---
@@ -495,18 +585,19 @@ RETRIEVAL_SCORE_THRESHOLD=0.7
 
 ### Known Limitations
 
-- **Static corpus**: Data does not auto-update; NAV and page content changes on Groww require manual re-scraping and re-ingestion
-- **Single AMC**: Limited to HDFC Mutual Fund (5 schemes); not multi-AMC
-- **English only**: No multi-language support
-- **No conversation memory**: Each query is independent (no multi-turn context)
-- **No authentication**: Open access, no user session management
+- **JavaScript-rendered data:** Some Groww page content loads via client-side JS. Our `requests`-based scraper gets SSR content, which may miss some dynamically rendered values.
+- **Single AMC:** Limited to HDFC Mutual Fund (5 schemes); not multi-AMC.
+- **English only:** No multi-language support.
+- **No conversation memory:** Each query is independent (no multi-turn context).
+- **No authentication:** Open access, no user session management.
 
 ### Future Enhancements
 
 | Enhancement | Description |
 |-------------|-------------|
-| **Automated ingestion** | Scheduled re-scraping of Groww URLs to keep corpus current |
+| ~~**Automated ingestion**~~ | ✅ Implemented — GitHub Actions daily refresh at 10AM IST |
 | **Multi-AMC support** | Expand corpus to SBI, ICICI Prudential, Axis, etc. |
+| **Playwright scraper** | Replace `requests` with browser automation to capture JS-rendered values |
 | **Conversation memory** | Add session-based context for follow-up questions |
 | **Evaluation framework** | RAGAS-based evaluation (faithfulness, answer relevancy, context precision) |
 | **Caching** | Cache frequent queries to reduce Groq API calls |
