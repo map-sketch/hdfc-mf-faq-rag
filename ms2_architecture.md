@@ -358,7 +358,7 @@ See **Section 2.0** for the full scheduler architecture diagram.
 |----------|-------|
 | **Platform** | GitHub Actions |
 | **Workflow file** | `.github/workflows/daily_refresh.yml` |
-| **Cron schedule** | `30 4 * * *` — 04:30 UTC = **10:00 AM IST** |
+| **Trigger** | Cron schedule: `0 5 * * *` — 05:00 UTC = **10:30 AM IST** |
 | **Manual trigger** | `workflow_dispatch` (GitHub Actions UI) |
 | **Runner** | `ubuntu-latest` (GitHub-hosted) |
 | **Secrets** | `GROQ_API_KEY`, `HF_TOKEN` (GitHub Repository Secrets) |
@@ -366,7 +366,7 @@ See **Section 2.0** for the full scheduler architecture diagram.
 **Scheduler → Ingestion Integration:**
 
 ```
-GitHub Actions Cron (10AM IST)
+GitHub Actions Cron (10:30 AM IST)
         │
         ▼
   python -m src.ingest
@@ -517,7 +517,7 @@ Step 9: Response Formatter validates citation, appends footer
 Step 10: Final response displayed in Streamlit chat
 
 ─── Background (Daily at 10AM IST) ───────────────────────────────────
-Step A: GitHub Actions cron fires (30 4 * * *)
+Step A: GitHub Actions cron fires (0 5 * * *)
          │
 Step B: python -m src.ingest executed on ubuntu-latest runner
          │── Clears all ChromaDB entries (prevents duplicate data)

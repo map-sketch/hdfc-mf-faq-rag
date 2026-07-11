@@ -85,7 +85,7 @@ The scheduler is implemented as a **GitHub Actions cron workflow** (`.github/wor
 | Property | Value |
 |---|---|
 | **Platform** | GitHub Actions |
-| **Trigger** | Cron schedule: `30 4 * * *` (04:30 UTC = 10:00 AM IST) |
+| **Trigger** | Cron schedule: `0 5 * * *` (05:00 UTC = 10:30 AM IST) |
 | **Manual trigger** | `workflow_dispatch` (run anytime from GitHub UI) |
 | **Runner** | `ubuntu-latest` (GitHub-hosted) |
 
@@ -120,7 +120,7 @@ name: Daily Data Refresh
 
 on:
   schedule:
-    - cron: '30 4 * * *'   # 10:00 AM IST daily
+    - cron: '0 5 * * *'   # 10:30 AM IST daily
   workflow_dispatch:        # Allow manual trigger
 
 jobs:
