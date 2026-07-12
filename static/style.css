@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+
+html, body, [data-testid="stApp"] {
+    background-color: #0a0a0a !important;
+    color: #e3e2e2 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+#MainMenu, footer, [data-testid="stToolbar"],
+[data-testid="stDecoration"], [data-testid="stHeader"] {
+    display: none !important;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #0d0e0f !important;
+    border-right: 1px solid rgba(92,64,60,0.4) !important;
+    min-width: 260px !important;
+    max-width: 260px !important;
+}
+[data-testid="stSidebar"] > div:first-child { padding: 0 !important; }
+
+.main .block-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+}
+
+[data-testid="stChatMessage"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+    color: #e3e2e2 !important;
+}
+
+[data-testid="stChatInput"] {
+    background-color: #1e2020 !important;
+    border: 1px solid rgba(92,64,60,0.6) !important;
+    border-radius: 16px !important;
+    color: #e3e2e2 !important;
+}
+[data-testid="stChatInput"]:focus-within {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 1px #dc2626 !important;
+}
+[data-testid="stChatInput"] textarea {
+    color: #e3e2e2 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+[data-testid="stChatInput"] button {
+    background-color: #dc2626 !important;
+    border-radius: 12px !important;
+}
+
+.stSpinner > div { border-top-color: #dc2626 !important; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: #343535; border-radius: 20px; }
+
+a { color: #90cdff !important; }
+a:hover { color: #dc2626 !important; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.dot-pulse { animation: pulse 2s ease-in-out infinite; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.4s ease-out; }
+
+[data-testid="stSidebar"] [role="radiogroup"] { gap: 4px !important; }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] { display: none; }
+[data-testid="stSidebar"] label {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.07em !important;
+    text-transform: uppercase !important;
+    color: #ac8884 !important;
+    padding: 12px 16px !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    transition: all 0.2s !important;
+    cursor: pointer !important;
+    border: 1px solid transparent !important;
+}
+[data-testid="stSidebar"] label:hover {
+    background: #1e2020 !important;
+    color: #e3e2e2 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stRadio"] > div {
+    padding: 0 8px !important;
+    gap: 4px !important;
+}
