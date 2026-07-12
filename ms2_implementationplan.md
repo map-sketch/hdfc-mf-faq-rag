@@ -58,21 +58,80 @@ This document outlines a phase-wise implementation plan to build the Mutual Fund
 3. **RAG Orchestration (`src/rag_chain.py`):**
    - Create the end-to-end pipeline that ties together `query_processor.py`, `retriever.py`, and `generator.py`.
 
-## Phase 5: User Interface (Streamlit)
+## Phase 5: User Interface (Streamlit) — Crimson Terminal Design
 
-**Goal:** Build the single-page chat interface for user interaction.
+**Goal:** Build a premium, multi-page chat interface following the **"Crimson Terminal"** design system (dark mode, crimson accents, Lexend + Inter typography).
 
-1. **UI Layout (`app.py`):**
-   - Setup the Streamlit application with standard configuration.
-   - Add the disclaimer banner ("Facts-only. No investment advice").
-   - Populate the sidebar or welcome message with example queries.
-2. **Chat Integration:**
-   - Use `st.chat_input` and `st.chat_message` to build the conversational flow.
-   - Wire the chat input to the orchestrator (`src/rag_chain.py`).
-   - Display the formatted response (including citations and footers).
-3. **Testing:**
-   - Test end-to-end flows with both factual queries, advisory (refused) queries, and queries with PII.
-   - Ensure the UI reflects the most recent data ingested by the Phase 6 scheduler.
+### 5.1 Design System (Crimson Terminal)
+
+Implemented via `st.markdown()` with injected CSS. No Tailwind in production — pure CSS variables.
+
+| Token | Value |
+|---|---|
+| **Background** | `#0a0a0a` (absolute black) |
+| **Surface** | `#1a1c1c` / `#1e2020` / `#292a2a` |
+| **Primary (Crimson)** | `#dc2626` |
+| **On-surface** | `#e3e2e2` |
+| **Muted text** | `#ac8884` (warm grey) |
+| **Headline font** | Lexend 700, −0.02em tracking |
+| **Body font** | Inter 400, 1.6 line-height |
+| **Border radius** | Cards: 16px, Chips: 9999px, Bubbles: 20px |
+
+### 5.2 Pages Implemented
+
+#### Home / Landing (empty state)
+- Full-viewport hero: `Good morning, Analyst` with crimson name highlight
+- Subtitle positioning the app as "institutional-grade"
+- 6-card bento suggestion grid (3×2 columns) with hover lift animations
+- Cards auto-populate the chat input on click
+
+#### Active Chat
+- User bubbles: right-aligned, `#1e2020` background, `border-radius: 20px 20px 4px 20px`
+- Assistant bubbles: left-aligned with `🏦` crimson avatar icon
+- Fade-in animation on each new message
+- Docked bottom input bar with 4 quick-action suggestion chips
+- Footer disclaimer: `ProMutual Analyst may produce inaccurate information`
+
+#### Fund Overview Page
+- Card row per fund with category badge (Equity / Commodities)
+- Sub-type badge (Mid Cap / Gold / Silver / Thematic / Flexi Cap)
+- Hover border glow (crimson accent)
+- Live data source footer explaining the 10:30 AM IST daily refresh
+
+#### History Page
+- Numbered list of all user queries this session
+- Reverse-chronological order
+- "Clear History" button
+
+### 5.3 Sidebar Navigation
+
+```
+ProMutual                     ← Lexend 26px, crimson
+HDFC Investment Terminal      ← uppercase label-caps
+● MARKET HOURS ACTIVE         ← pulsing crimson dot
+
+💬 Chat          ← active state: crimson pill bg
+📊 Fund Overview
+🕐 History
+
+─────────────────
+⭐ UPGRADE TO PREMIUM
+⚙️ SETTINGS
+```
+
+### 5.4 Streamlit Cloud Deployment Fixes
+
+1. **Secrets bridge** — All `st.secrets` values injected into `os.environ` at module level **before** any `src.*` imports, ensuring `GROQ_API_KEY` is available when `ChatGroq` is instantiated.
+2. **Lazy imports** — `from src.rag_chain import RAGPipeline` moved inside `@st.cache_resource` function, so imports run after secrets are loaded.
+3. **Auto-ingest on cold start** — `get_pipeline()` checks `vs._collection.count()`; if 0, runs `process_and_ingest()` automatically (~60 s).
+4. **`GROQ_API_KEY` fix** — Fixed `GroqError` where the API key wasn't reaching `ChatGroq.__init__()` because module-level imports ran before the secrets bridge.
+
+### 5.5 Testing
+- Test hero → suggestion card → chat flow
+- Test refusal for advisory queries
+- Test PII detection (PAN / phone number input)
+- Test Fund Overview links open correct Groww pages
+- Verify Streamlit Cloud auto-redeploys on each GitHub push
 
 ## Phase 6: Scheduler Component (Automated Daily Refresh)
 
